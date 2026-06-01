@@ -1,0 +1,89 @@
+# .github/workflows/test.yml
+
+name: Selenium Test Suite          # name shown in GitHub Actions UI
+
+# WHEN to trigger this workflow
+on:
+  push:                            # run on every push
+    branches: [ main, master ]     # only on these branches
+  pull_request:                    # run on every PR
+    branches: [ main, master ]
+  workflow_dispatch:               # allow manual trigger from GitHub UI
+
+jobs:
+  test:
+    name: Run Selenium Tests
+    runs-on: ubuntu-latest         # GitHub provides a free Ubuntu VM
+
+    steps:
+      # Step 1 — Check out your repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2 — Set up Python
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Step 3 — Cache pip dependencies
+      # This makes subsequent runs faster — skips re-downloading packages
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Step 4 — Install all Python dependencies
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 5 — Set up Chrome browser on the Ubuntu runner
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      # Step 6 — Create the .env file from GitHub Secrets
+      # We never commit .env — CI creates it from secrets at runtime
+      - name: Create .env file
+        run: |
+          echo "STANDARD_USER=${{ secrets.STANDARD_USER }}" >> .env
+          echo "LOCKED_USER=${{ secrets.LOCKED_USER }}"     >> .env
+          echo "PASSWORD=${{ secrets.PASSWORD }}"           >> .env
+
+      # Step 7 — Run the tests
+      # --headless because CI has no monitor
+      # -n 2 for parallel execution on CI runner
+      # --alluredir to generate report data
+      - name: Run tests
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -n 2 \
+            --alluredir=reports/allure-results \
+            --override-ini="addopts=" \
+        env:
+          PYTHONPATH: .            # ensures imports work correctly
+
+      # Step 8 — Upload Allure results as downloadable artifact
+      # Even if tests fail, we want the report
+      - name: Upload Allure results
+        if: always()              # run even if previous step failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: reports/allure-results/
+          retention-days: 30      # keep for 30 days
+
+      # Step 9 — Upload HTML report as artifact
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report
+          path: reports/report.html
+          retention-days: 30
