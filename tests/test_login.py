@@ -25,8 +25,8 @@ class TestLogin:
             login_page.login(Config.STANDARD_USER, Config.PASSWORD)
 
         with allure.step("Verify redirect to inventory page"):
-            assert "inventory" in driver.current_url, (
-                f"Expected inventory page but got: {driver.current_url}"
+            assert "test" in driver.current_url, (
+                f"Expected invesntory page but got: {driver.current_url}"
             )
 
     # -------------------------
